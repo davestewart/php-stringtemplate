@@ -3,7 +3,7 @@
 class TokenString
 {
 	// ------------------------------------------------------------------------------------------------
-	// PROPERTIES
+	// STATIC PROPERTIES
 
 		/**
 		 * The global regex to match a {token} and (capture) its name
@@ -12,7 +12,11 @@ class TokenString
 		 *
 		 * @var string $_pattern
 		 */
-		public static $regex = '/{([\.\w]+)}/';
+		public static $regex = '!{([\.\w]+)}!';
+
+	
+	// ------------------------------------------------------------------------------------------------
+	// PROPERTIES
 
 		/**
 		 * The source string comprising of text and {tokens}
@@ -22,18 +26,43 @@ class TokenString
 		protected $source;
 
 		/**
-		 * The Tokens instance that holds token matching and replacement data
+		 * The name => value replacement hash with which to interpolate the string
 		 *
-		 * @var Tokens
+		 * @var mixed[]
 		 */
-		protected $tokens;
+		protected $data;
 
 		/**
-		 * The Matches instance that holds string matching data
+		 * A name => match hash of tokens matches
 		 *
-		 * @var Matches
+		 * @var string[]
 		 */
 		protected $matches;
+
+		/**
+		 * A name => regex hash of token content filters
+		 *
+		 * @var string[]
+		 */
+		protected $filters;
+
+		/**
+		 * The global regex to match a {token} and (capture) its name
+		 *
+		 * The pattern should have start and ending delimiters
+		 *
+		 * @var string $tokenRegex
+		 */
+		protected $tokenRegex;
+
+		/**
+		 * The full regex to match the source string, including tokens, and capture passed content
+		 *
+		 * This has to be cached as the process to create it is expensive
+		 *
+		 * @var string
+		 */
+		protected $sourceRegex;
 
 
 	// ------------------------------------------------------------------------------------------------
@@ -42,30 +71,42 @@ class TokenString
 		/**
 		 * StringTemplate constructor
 		 *
-		 * @param   string      $source     The TokenString source
-		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
+		 * @param   string          $source         The TokenString source
+		 * @param   string|null     $localRegex     An optional token-matching regex, defaults to the global token regex {token}
 		 */
-		public function __construct($source, $regex = null)
+		public function __construct($source, $localRegex = null)
 		{
-			if($regex == null)
+			// parameters
+			if($localRegex == null)
 			{
-				$regex = self::$regex;
+				$localRegex = self::$regex;
 			}
-			$this->tokens       = new Tokens($regex);
-			$this->matches      = new Matches();
+
+			// properties
+			$this->data             = [];
+			$this->matches          = [];
+			$this->filters          = [];
+			$this->tokenRegex       = $localRegex;
+			$this->sourceRegex      = '';
 			$this->setSource($source);
 		}
 
 		/**
 		 * Chainable TokenString constructor
 		 *
-		 * @param   string      $source     The TokenString source
-		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
+		 * Passing a regex updates the global regex pattern
+		 *
+		 * @param   string          $source         The TokenString source
+		 * @param   string|null     $globalRegex    An optional token-matching regex, defaults to the global token regex {token}
 		 * @return  TokenString
 		 */
-		public static function make($source, $regex = null)
+		public static function make($source, $globalRegex = null)
 		{
-			return new TokenString($source, $regex);
+			if($globalRegex)
+			{
+				self::$regex = $globalRegex;
+			}
+			return new TokenString($source, $globalRegex);
 		}
 
 
@@ -82,11 +123,15 @@ class TokenString
 		 */
 		public function setSource($source)
 		{
-			$this->source           = $source;
-			$this->matches->regex   = null;
-			preg_match_all($this->tokens->regex, $source, $matches);
-			$this->tokens->matches  = $matches[0];
-			$this->tokens->names    = $matches[1];
+			// properties
+			$this->source       = $source;
+			$this->sourceRegex  = '';
+
+			//matches
+			preg_match_all($this->tokenRegex, $source, $matches);
+			$this->matches      = array_combine($matches[1], $matches[0]);
+
+			// return
 			return $this;
 		}
 
@@ -110,15 +155,22 @@ class TokenString
 		 */
 		public function setData($name, $data = null)
 		{
-			if($data == null || $data === true)
+			if(is_array($name))
 			{
-				$this->tokens->data = $data === true
-					? $this->tokens->data + (array) $name
-					: (array) $name;
+				$this->data = $data === true
+					? $this->data + $name
+					: $name;
 			}
 			else
 			{
-				$this->tokens->data[$name] = $data;
+				if($data)
+				{
+					$this->data[$name] = $data;
+				}
+				else
+				{
+					unset($this->data[$name]);
+				}
 			}
 			return $this;
 		}
@@ -146,16 +198,25 @@ class TokenString
 		 */
 		public function setMatch($name, array $regex = null)
 		{
-			$this->matches->regex = null;
-			if($regex == null || $regex === true)
+			// clear existing match
+			$this->sourceRegex = '';
+
+			if(is_array($name))
 			{
-				$this->matches->data = $regex === true
-					? $this->matches->data + (array) $name
-					: (array) $name;
+				$this->filters = $regex === true
+					? $this->filters + $name
+					: $name;
 			}
 			else
 			{
-				$this->matches->data[$name] = $regex;
+				if($regex)
+				{
+					$this->filters[$name] = $regex;
+				}
+				else
+				{
+					unset($this->filters[$name]);
+				}
 			}
 			return $this;
 		}
@@ -176,11 +237,19 @@ class TokenString
 		 */
 		public function resolve($filter = false)
 		{
-			$this->setSource($this->replace($this->source, $this->tokens->data));
+			// cache old matches;
+			$matches = [] + $this->matches;
+
+			// update string
+			$this->setSource($this->replace($this->source, $this->data));
+
+			// filter out old data
 			if($filter)
 			{
-				$this->tokens->data = array_intersect_key($this->tokens->data, array_flip($this->tokens->names));
+				$this->data = array_intersect_key($this->data, $matches);
 			}
+
+			// return
 			return $this;
 		}
 
@@ -197,8 +266,8 @@ class TokenString
 		public function process($data = null)
 		{
 			$data = $data
-				? array_merge($this->tokens->data, $data)
-				: $this->tokens->data;
+				? array_merge($this->data, $data)
+				: $this->data;
 			return $this->replace($this->source, $data);
 		}
 
@@ -214,9 +283,9 @@ class TokenString
 		 */
 		public function chain($data = null)
 		{
-			return self::make($this->process($data), $this->tokens->regex)
-				->setData($this->tokens->data)
-				->setMatch($this->matches->data);
+			return self::make($this->process($data), $this->tokenRegex)
+				->setData($this->data)
+				->setMatch($this->filters);
 		}
 
 		/**
@@ -233,19 +302,19 @@ class TokenString
 		public function match($input, $delimiter = '!')
 		{
 			// get regex
-			if( ! $this->matches->regex )
+			if($this->sourceRegex === '')
 			{
-				$this->matches->regex = $this->getSourceRegex($delimiter);
+				$this->sourceRegex = $this->getSourceRegex($delimiter);
 			}
 
 			// match
-			preg_match($this->matches->regex, $input, $matches);
+			preg_match($this->sourceRegex, $input, $matches);
 
 			// convert matches to named capture array
 			if(count($matches))
 			{
 				array_shift($matches);
-				return array_combine($this->tokens->names, $matches);
+				return array_combine(array_keys($this->matches), $matches);
 			}
 			return null;
 		}
@@ -276,14 +345,12 @@ class TokenString
 			$filters        = [];
 
 			// phase 1: build arrays
-			for ($i = 0; $i < count($this->tokens->names); $i++)
+			foreach ($this->matches as $name => $match)
 			{
 				// variables
-				$name                    = $this->tokens->names[$i];
-				$match                  = $this->tokens->matches[$i];
 				$placeholder            = '%%' . strtoupper($name) . '%%';
-				$filter                 = isset($this->matches->data[$name])
-											? $this->matches->data[$name]
+				$filter                 = isset($this->filters[$name])
+											? $this->filters[$name]
 											: '.*';
 
 				// update arrays
@@ -307,7 +374,7 @@ class TokenString
 			}
 
 			// debug
-			//pd($tokens, $regexs, $source);
+			//pd($source);
 
 			// return
 			return $delimiter . $source . $delimiter;
@@ -318,7 +385,7 @@ class TokenString
 
 		protected function replace($source, array $data)
 		{
-			foreach($this->tokens->names as $index => $name)
+			foreach($this->matches as $name => $match)
 			{
 				// ignore unset keys
 				if(isset($data[$name]))
@@ -335,12 +402,12 @@ class TokenString
 						}
 						else if (is_callable($replace) )
 						{
-							$replace = call_user_func_array($replace, [$this->source, $source, $name, $index, $this]);
+							$replace = call_user_func($replace, $name);
 						}
 					}
 
 					// replace the original token
-					$source = str_replace($this->tokens->matches[$index], (string) $replace, $source);
+					$source = str_replace($match, (string) $replace, $source);
 				}
 			}
 
@@ -357,85 +424,4 @@ class TokenString
 			return (string) $this->process();
 		}
 
-}
-
-/**
- * Class Tokens
- *
- * Holds token matching and replacement data
- */
-class Tokens
-{
-	/**
-	 * The list of captured tokens
-	 *
-	 * @var string[]
-	 */
-	public $matches;
-
-	/**
-	 * The list of captured token names
-	 *
-	 * @var string[]
-	 */
-	public $names;
-
-	/**
-	 * The name => value replacement hash with which to interpolate the string
-	 *
-	 * @var mixed[]
-	 */
-	public $data;
-
-	/**
-	 * Global regex to capture tokens
-	 *
-	 * @var string
-	 */
-	public $regex;
-
-	/**
-	 * Tokens constructor
-	 *
-	 * @param   string|null   $regex    Optional regex for token matches
-	 */
-	public function __construct($regex)
-	{
-		$this->regex = $regex;
-		$this->data = [];
-
-	}
-
-}
-
-/**
- * Class Matches
- *
- * Holds string matching data
- */
-class Matches
-{
-	/**
-	 * An array of filter regexes for each token in the source string
-	 *
-	 * @var string[]
-	 */
-	public $data;
-
-	/**
-	 * The full regex to match the source string, including tokens, and capture passed content
-	 *
-	 * This has to be cached as the process to create it is expensive
-	 *
-	 * @var string
-	 */
-	public $regex;
-
-	/**
-	 * Matches constructor
-	 */
-	public function __construct()
-	{
-		$this->data = [];
-	}
 }
