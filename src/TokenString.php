@@ -82,11 +82,15 @@ class TokenString
 		 */
 		public function setSource($source)
 		{
+			// properties
 			$this->source           = $source;
 			$this->matches->regex   = null;
+
+			//matches
 			preg_match_all($this->tokens->regex, $source, $matches);
-			$this->tokens->matches  = $matches[0];
-			$this->tokens->names    = $matches[1];
+			$this->tokens->matches  = array_combine($matches[1], $matches[0]);
+
+			// return
 			return $this;
 		}
 
@@ -179,7 +183,7 @@ class TokenString
 			$this->setSource($this->replace($this->source, $this->tokens->data));
 			if($filter)
 			{
-				$this->tokens->data = array_intersect_key($this->tokens->data, array_flip($this->tokens->names));
+				$this->tokens->data = array_intersect_key($this->tokens->data, $this->tokens->matches);
 			}
 			return $this;
 		}
@@ -245,7 +249,7 @@ class TokenString
 			if(count($matches))
 			{
 				array_shift($matches);
-				return array_combine($this->tokens->names, $matches);
+				return array_combine(array_keys($this->tokens->matches), $matches);
 			}
 			return null;
 		}
@@ -276,11 +280,9 @@ class TokenString
 			$filters        = [];
 
 			// phase 1: build arrays
-			for ($i = 0; $i < count($this->tokens->names); $i++)
+			foreach ($this->tokens->matches as $name => $match)
 			{
 				// variables
-				$name                    = $this->tokens->names[$i];
-				$match                  = $this->tokens->matches[$i];
 				$placeholder            = '%%' . strtoupper($name) . '%%';
 				$filter                 = isset($this->matches->data[$name])
 											? $this->matches->data[$name]
@@ -318,7 +320,7 @@ class TokenString
 
 		protected function replace($source, array $data)
 		{
-			foreach($this->tokens->names as $index => $name)
+			foreach($this->tokens->matches as $name => $match)
 			{
 				// ignore unset keys
 				if(isset($data[$name]))
@@ -335,12 +337,12 @@ class TokenString
 						}
 						else if (is_callable($replace) )
 						{
-							$replace = call_user_func_array($replace, [$this->source, $source, $name, $index, $this]);
+							$replace = call_user_func($replace, $name);
 						}
 					}
 
 					// replace the original token
-					$source = str_replace($this->tokens->matches[$index], (string) $replace, $source);
+					$source = str_replace($match, (string) $replace, $source);
 				}
 			}
 
@@ -367,18 +369,11 @@ class TokenString
 class Tokens
 {
 	/**
-	 * The list of captured tokens
+	 * A name => match hash of tokens matches
 	 *
 	 * @var string[]
 	 */
 	public $matches;
-
-	/**
-	 * The list of captured token names
-	 *
-	 * @var string[]
-	 */
-	public $names;
 
 	/**
 	 * The name => value replacement hash with which to interpolate the string
