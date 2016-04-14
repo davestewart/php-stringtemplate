@@ -207,7 +207,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 		$output = [];
 		foreach($nums as $num)
 		{
-			$output[] = $input->process(['baz' => $num]);
+			$output[] = $input->render(['baz' => $num]);
 		}
 
 		$this->assertEquals($expect, $output);

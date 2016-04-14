@@ -5,6 +5,7 @@
  *
  * @package davestewart\tokenstring
  *
+ * @property string $source
  * @property string $value
  */
 class TokenString
@@ -78,10 +79,10 @@ class TokenString
 		/**
 		 * StringTemplate constructor
 		 *
-		 * @param   string          $source         The TokenString source
+		 * @param   string          $source         An optional source string
 		 * @param   string|null     $localRegex     An optional token-matching regex, defaults to the global token regex {token}
 		 */
-		public function __construct($source, $localRegex = null)
+		public function __construct($source = '', $localRegex = null)
 		{
 			// parameters
 			if($localRegex == null)
@@ -103,11 +104,11 @@ class TokenString
 		 *
 		 * Passing a regex updates the global regex pattern
 		 *
-		 * @param   string          $source         The TokenString source
+		 * @param   string          $source         An optional source string
 		 * @param   string|null     $globalRegex    An optional token-matching regex, defaults to the global token regex {token}
 		 * @return  TokenString
 		 */
-		public static function make($source, $globalRegex = null)
+		public static function make($source = '', $globalRegex = null)
 		{
 			if($globalRegex)
 			{
@@ -232,7 +233,11 @@ class TokenString
 		{
 			if($name === 'value')
 			{
-				return (string) $this->process();
+				return (string) $this->render();
+			}
+			if($name === 'source')
+			{
+				return $this->source;
 			}
 			throw new \Exception("Unknown property '$name'");
 		}
@@ -241,13 +246,31 @@ class TokenString
 	// RESOLVERS
 
 		/**
-		 * Expand source tokens, updating the source, and chain the original object
+		 * Render and return the string by expanding source tokens, without updating the source
 		 *
-		 * Use this when you want to replace template tokens with variables, so they're
+		 * Use this when you want to keep the source template tokens in place for further
+		 * processing, for example you're running in a loop and only need the returned
+		 * value
+		 *
+		 * @param   array   $data       Optional data to populate the string with; is merged with the existing data
+		 * @return  string
+		 */
+		public function render($data = null)
+		{
+			$data = $data
+				? array_merge($this->data, $data)
+				: $this->data;
+			return $this->replace($this->source, $data);
+		}
+
+		/**
+		 * Expand source tokens, update the source, and chain the original object
+		 *
+		 * Use this when you want to replace source tokens with the current data, so they're
 		 * not processed in further loops. Usually you'll leave some tokens unresolved
-		 * (by not supplying data for them) for later processing via process() or match()
+		 * (by not supplying data for them) for later processing via render() or match()
 		 *
-		 * @param   bool    $filter     Optional flag to remove used data keys
+		 * @param   bool    $filter     Optional flag to remove expanded data keys
 		 * @return  TokenString
 		 */
 		public function resolve($filter = false)
@@ -269,24 +292,6 @@ class TokenString
 		}
 
 		/**
-		 * Expand source tokens WITHOUT updating the source, and return the result
-		 *
-		 * Use this when you want to keep the source template tokens in place for further
-		 * processing, for example you're running in a loop and only need the returned
-		 * value
-		 *
-		 * @param   array   $data       Optional data to populate the string with; is merged with the existing data
-		 * @return  string
-		 */
-		public function process($data = null)
-		{
-			$data = $data
-				? array_merge($this->data, $data)
-				: $this->data;
-			return $this->replace($this->source, $data);
-		}
-
-		/**
 		 * Special method to populate the source template, but return a chainable copy of the
 		 * original TokenString instance
 		 *
@@ -298,7 +303,7 @@ class TokenString
 		 */
 		public function chain($data = null)
 		{
-			return self::make($this->process($data), $this->tokenRegex)
+			return self::make($this->render($data), $this->tokenRegex)
 				->setData($this->data)
 				->setMatch($this->filters);
 		}
@@ -331,7 +336,7 @@ class TokenString
 				array_shift($matches);
 				return array_combine(array_keys($this->matches), $matches);
 			}
-			return null;
+			return false;
 		}
 
 		/**
@@ -413,7 +418,7 @@ class TokenString
 					{
 						if($replace instanceof TokenString)
 						{
-							$replace = $replace->process($data);
+							$replace = $replace->render($data);
 						}
 						else if (is_callable($replace) )
 						{
@@ -436,7 +441,7 @@ class TokenString
 
 		public function __toString()
 		{
-			return (string) $this->process();
+			return (string) $this->render();
 		}
 
 }
