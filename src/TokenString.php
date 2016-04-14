@@ -1,4 +1,4 @@
-<?php namespace davestewart\stringtemplate;
+<?php namespace davestewart\tokenstring;
 
 class TokenString
 {
