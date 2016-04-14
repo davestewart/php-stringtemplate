@@ -1,6 +1,6 @@
 <?php namespace davestewart\stringtemplate;
 
-class StringTemplate
+class TokenString
 {
 	// ------------------------------------------------------------------------------------------------
 	// PROPERTIES
@@ -42,7 +42,7 @@ class StringTemplate
 		/**
 		 * StringTemplate constructor
 		 *
-		 * @param   string      $source     The StringTemplate source
+		 * @param   string      $source     The TokenString source
 		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
 		 */
 		public function __construct($source, $regex = null)
@@ -57,15 +57,15 @@ class StringTemplate
 		}
 
 		/**
-		 * Chainable StringTemplate constructor
+		 * Chainable TokenString constructor
 		 *
-		 * @param   string      $source     The StringTemplate source
+		 * @param   string      $source     The TokenString source
 		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
-		 * @return  StringTemplate
+		 * @return  TokenString
 		 */
 		public static function make($source, $regex = null)
 		{
-			return new StringTemplate($source, $regex);
+			return new TokenString($source, $regex);
 		}
 
 
@@ -78,7 +78,7 @@ class StringTemplate
 		 * Also sets tokens arrays
 		 *
 		 * @param   string      $source
-		 * @return  self
+		 * @return  TokenString
 		 */
 		public function setSource($source)
 		{
@@ -101,12 +101,12 @@ class StringTemplate
 		 * Values can be:
 		 *
 		 *  - strings, numbers, or any stringable value
-		 *  - a StringTemplate instance, for nested replacements
+		 *  - a TokenString instance, for nested replacements
 		 *  - a function that returns a string, of the form: function($name, $source, $instance) { }
 		 *
 		 * @param   string|array $name
 		 * @param   array|null   $data
-		 * @return  self
+		 * @return  TokenString
 		 */
 		public function setData($name, $data = null)
 		{
@@ -142,7 +142,7 @@ class StringTemplate
 		 *
 		 * @param   string|array    $name        The name of the token to match
 		 * @param   array|null      $regex      The regex pattern to match potential token content
-		 * @return  self
+		 * @return  TokenString
 		 */
 		public function setMatch($name, array $regex = null)
 		{
@@ -172,7 +172,7 @@ class StringTemplate
 		 * (by not supplying data for them) for later processing via process() or match()
 		 *
 		 * @param   bool    $filter     Optional flag to remove used data keys
-		 * @return  self
+		 * @return  TokenString
 		 */
 		public function resolve($filter = false)
 		{
@@ -204,13 +204,13 @@ class StringTemplate
 
 		/**
 		 * Special method to populate the source template, but return a chainable copy of the
-		 * original StringTemplate
+		 * original TokenString instance
 		 *
 		 * Use this when replacements themselves return further tokens you need to
 		 * populate via process() but you don't want to update the original source string
 		 *
 		 * @param   array|null      $data
-		 * @return  self
+		 * @return  TokenString
 		 */
 		public function chain($data = null)
 		{
@@ -329,7 +329,7 @@ class StringTemplate
 					// if not a string, resolve
 					if( ! is_string($replace) )
 					{
-						if($replace instanceof StringTemplate)
+						if($replace instanceof TokenString)
 						{
 							$replace = $replace->process($data);
 						}
