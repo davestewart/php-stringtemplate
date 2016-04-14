@@ -1,5 +1,12 @@
 <?php namespace davestewart\tokenstring;
 
+/**
+ * Class TokenString
+ *
+ * @package davestewart\tokenstring
+ *
+ * @property string $value
+ */
 class TokenString
 {
 	// ------------------------------------------------------------------------------------------------
@@ -160,6 +167,14 @@ class TokenString
 			return $this;
 		}
 
+		public function __get($name)
+		{
+			if($name === 'value')
+			{
+				return (string) $this->process();
+			}
+			throw new \Exception("Unknown property '$name'");
+		}
 
 	// ------------------------------------------------------------------------------------------------
 	// RESOLVERS
