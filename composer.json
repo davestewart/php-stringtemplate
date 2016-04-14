@@ -5,9 +5,13 @@
     "require": {
         "php": ">=5.3.0"
     },
+    "require-dev": {
+        "phpunit/phpunit": "5.3.*"
+    },
     "autoload": {
         "psr-4": {
             "davestewart\\tokenstring\\": "src"
         }
-    }
+    },
+    "minimum-stability": "dev"
 }
