@@ -1,103 +1,71 @@
 <?php namespace davestewart\stringtemplate;
 
-
 class StringTemplate
 {
-
-	// ------------------------------------------------------------------------------------------------
-	// STATIC PROPERTIES
-
-		public static $_tokenPattern = '/{([\.\w]+)}/';
-
-
 	// ------------------------------------------------------------------------------------------------
 	// PROPERTIES
 
 		/**
-		 * The source string comprising of various {tokens}
+		 * The global regex to match a {token} and (capture) its name
 		 *
-		 * @var string
+		 * The pattern should have start and ending delimiters
+		 *
+		 * @var string $_pattern
+		 */
+		public static $regex = '/{([\.\w]+)}/';
+
+		/**
+		 * The source string comprising of text and {tokens}
+		 *
+		 * @var string $source
 		 */
 		protected $source;
 
 		/**
-		 * The key => value replacement hash with which to interpolate the string
+		 * The Tokens instance that holds token matching and replacement data
 		 *
-		 * @var mixed[]
+		 * @var Tokens
 		 */
 		protected $tokens;
 
 		/**
-		 * The current array of matched {token} strings
+		 * The Matches instance that holds string matching data
 		 *
-		 * @var string[]
+		 * @var Matches
 		 */
-		protected $matchTokens;
-
-		/**
-		 * The current array of matched {token} "key" strings
-		 *
-		 * @var string[]
-		 */
-		protected $matchKeys;
-
-		/**
-		 * The regex to match a {token} and (capture) its key
-		 *
-		 * The pattern should have start and ending delimiters
-		 *
-		 * @var string
-		 */
-		protected $tokenPattern;
-
-		/**
-		 * The full regex to match the source string, including tokens, and capture passed content
-		 *
-		 * Generated and cached when match() is called
-		 *
-		 * @var string
-		 */
-		protected $sourcePattern;
-
-		/**
-		 * An array of filter regexes for each token in the source string
-		 *
-		 * Used when building the $sourcePattern to match arbitrary passed strings
-		 *
-		 * @var string[]
-		 */
-		protected $filterPatterns;
+		protected $matches;
 
 
 	// ------------------------------------------------------------------------------------------------
 	// INSTANTIATION
 
 		/**
-		 * StringTemplate constructor.
+		 * StringTemplate constructor
 		 *
-		 * @param   string          $source     The StringTemplate source
-		 * @param   string|null     $pattern    An optional token-matching regex, defaults to the global token regex {token}
+		 * @param   string      $source     The StringTemplate source
+		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
 		 */
-		public function __construct($source, $pattern = null)
+		public function __construct($source, $regex = null)
 		{
-			$this->setTokenPattern($pattern); // tokens need to be set first
+			if($regex == null)
+			{
+				$regex = self::$regex;
+			}
+			$this->tokens       = new Tokens($regex);
+			$this->matches      = new Matches();
 			$this->setSource($source);
-			$this->filterPatterns   = [];
-			$this->tokens           = [];
-			$this->matches          = [];
-			$this->keys             = [];
 		}
 
 		/**
 		 * Chainable StringTemplate constructor
 		 *
-		 * @param   string          $source     The StringTemplate source
-		 * @param   string|null     $pattern    An optional token-matching regex, defaults to the global token regex {token}
+		 * @param   string      $source     The StringTemplate source
+		 * @param   string|null $regex      An optional token-matching regex, defaults to the global token regex {token}
 		 * @return  StringTemplate
 		 */
-		public static function make($source, $pattern = null)
+		public static function make($source, $regex = null)
 		{
-			return new StringTemplate($source, $pattern);
+			return new StringTemplate($source, $regex);
 		}
 
 
@@ -107,23 +75,23 @@ class StringTemplate
 		/**
 		 * Set the source string
 		 *
-		 * Also sets tokens and keys arrays
+		 * Also sets tokens arrays
 		 *
 		 * @param   string      $source
 		 * @return  self
 		 */
 		public function setSource($source)
 		{
-			preg_match_all($this->tokenPattern, $source, $matches);
-			$this->matchTokens      = $matches[0];
-			$this->matchKeys    = $matches[1];
 			$this->source           = $source;
-			$this->sourcePattern    = null;
+			$this->matches->regex   = null;
+			preg_match_all($this->tokens->regex, $source, $matches);
+			$this->tokens->matches  = $matches[0];
+			$this->tokens->names    = $matches[1];
 			return $this;
 		}
 
 		/**
-		 * Sets the token replacement
+		 * Sets the token replacement data
 		 *
 		 * Pass in:
 		 *
@@ -134,34 +102,34 @@ class StringTemplate
 		 *
 		 *  - strings, numbers, or any stringable value
 		 *  - a StringTemplate instance, for nested replacements
-		 *  - a function that returns a string, of the form: function($key, $source, $instance) { }
+		 *  - a function that returns a string, of the form: function($name, $source, $instance) { }
 		 *
 		 * @param   string|array $name
-		 * @param   array|null   $tokens
+		 * @param   array|null   $data
 		 * @return  self
 		 */
-		public function setToken($name, $tokens = null)
+		public function setData($name, $data = null)
 		{
-			if($tokens == null || $tokens === true)
+			if($data == null || $data === true)
 			{
-				$this->tokens = $tokens === true
-					? $this->tokens + (array) $name
+				$this->tokens->data = $data === true
+					? $this->tokens->data + (array) $name
 					: (array) $name;
 			}
 			else
 			{
-				$this->tokens[$name] = $tokens;
+				$this->tokens->data[$name] = $data;
 			}
 			return $this;
 		}
 
 		/**
-		 * Sets filter patterns for individual tokens
+		 * Sets match patterns for individual tokens
 		 *
 		 * Pass in:
 		 *
-		 *  - a name and pattern
-		 *  - a single name => value hash, with an optional true to merge patterns
+		 *  - a name and regex
+		 *  - a single name => value hash, with an optional boolean true to merge patterns
 		 *
 		 * Values should be regular expressions that match the expected token content
 		 *
@@ -172,35 +140,23 @@ class StringTemplate
 		 *
 		 * These will be added for you
 		 *
-		 * @param   string|array    $name
-		 * @param   array|null      $patterns
+		 * @param   string|array    $name        The name of the token to match
+		 * @param   array|null      $regex      The regex pattern to match potential token content
 		 * @return  self
 		 */
-		public function setFilter($name, array $patterns = null)
+		public function setMatch($name, array $regex = null)
 		{
-			$this->sourcePattern = null;
-			if($patterns == null || $patterns === true)
+			$this->matches->regex = null;
+			if($regex == null || $regex === true)
 			{
-				$this->filterPatterns = $patterns === true
-					? $this->filterPatterns + (array) $name
+				$this->matches->data = $regex === true
+					? $this->matches->data + (array) $name
 					: (array) $name;
 			}
 			else
 			{
-				$this->filterPatterns[$name] = $patterns;
+				$this->matches->data[$name] = $regex;
 			}
-			return $this;
-		}
-
-		/**
-		 * Sets the global token pattern regex
-		 *
-		 * @param   string          $pattern
-		 * @return  self
-		 */
-		public function setTokenPattern($pattern)
-		{
-			$this->tokenPattern = $pattern ?: self::$_tokenPattern;
 			return $this;
 		}
 
@@ -211,18 +167,19 @@ class StringTemplate
 		/**
 		 * Expand source tokens, updating the source, and chain the original object
 		 *
-		 * Use this when you want to replace template tokens with variables,
-		 * and leave some for further processing with process() or match()
+		 * Use this when you want to replace template tokens with variables, so they're
+		 * not processed in further loops. Usually you'll leave some tokens unresolved
+		 * (by not supplying data for them) for later processing via process() or match()
 		 *
 		 * @param   bool    $filter     Optional flag to remove used data keys
 		 * @return  self
 		 */
 		public function resolve($filter = false)
 		{
-			$this->setSource($this->replace($this->source, $this->tokens));
+			$this->setSource($this->replace($this->source, $this->tokens->data));
 			if($filter)
 			{
-				$this->tokens = array_intersect_key($this->tokens, array_flip($this->matchKeys));
+				$this->tokens->data = array_intersect_key($this->tokens->data, array_flip($this->tokens->names));
 			}
 			return $this;
 		}
@@ -240,8 +197,8 @@ class StringTemplate
 		public function process($data = null)
 		{
 			$data = $data
-				? array_merge($this->tokens, $data)
-				: $this->tokens;
+				? array_merge($this->tokens->data, $data)
+				: $this->tokens->data;
 			return $this->replace($this->source, $data);
 		}
 
@@ -257,9 +214,9 @@ class StringTemplate
 		 */
 		public function chain($data = null)
 		{
-			return self::make($this->process($data), $this->tokenPattern)
-				->setToken($this->tokens)
-				->setFilter($this->filterPatterns);
+			return self::make($this->process($data), $this->tokens->regex)
+				->setData($this->tokens->data)
+				->setMatch($this->matches->data);
 		}
 
 		/**
@@ -276,19 +233,19 @@ class StringTemplate
 		public function match($input, $delimiter = '!')
 		{
 			// get regex
-			if( ! $this->sourcePattern )
+			if( ! $this->matches->regex )
 			{
-				$this->sourcePattern = $this->getSourcePattern($delimiter);
+				$this->matches->regex = $this->getSourceRegex($delimiter);
 			}
 
 			// match
-			preg_match($this->sourcePattern, $input, $matches);
+			preg_match($this->matches->regex, $input, $matches);
 
 			// convert matches to named capture array
 			if(count($matches))
 			{
 				array_shift($matches);
-				return array_combine($this->matchKeys, $matches);
+				return array_combine($this->tokens->names, $matches);
 			}
 			return null;
 		}
@@ -299,7 +256,7 @@ class StringTemplate
 		 * @param   string          $delimiter      An optional regex delimiter with which to make the matching pattern
 		 * @return  string
 		 */
-		public function getSourcePattern($delimiter = '!')
+		public function getSourceRegex($delimiter = '!')
 		{
 			// the process of building a suitable match string is complicated due to the
 			// fact that we need to escape the source string - but don't want to escape
@@ -319,25 +276,25 @@ class StringTemplate
 			$filters        = [];
 
 			// phase 1: build arrays
-			for ($i = 0; $i < count($this->matchKeys); $i++)
+			for ($i = 0; $i < count($this->tokens->names); $i++)
 			{
 				// variables
-				$key                    = $this->matchKeys[$i];
-				$token                  = $this->matchTokens[$i];
-				$placeholder            = '%%' . strtoupper($key) . '%%';
-				$filter                 = isset($this->filterPatterns[$key])
-											? $this->filterPatterns[$key]
+				$name                    = $this->tokens->names[$i];
+				$match                  = $this->tokens->matches[$i];
+				$placeholder            = '%%' . strtoupper($name) . '%%';
+				$filter                 = isset($this->matches->data[$name])
+											? $this->matches->data[$name]
 											: '.*';
 
 				// update arrays
-				$placeholders[$token]   = $placeholder;
+				$placeholders[$match]   = $placeholder;
 				$filters[$placeholder]  = "($filter)";
 			}
 
 			// phase 2: replace tokens with placeholders
-			foreach ($placeholders as $token => $placeholder)
+			foreach ($placeholders as $match => $placeholder)
 			{
-				$source = str_replace($token, $placeholder, $source);
+				$source = str_replace($match, $placeholder, $source);
 			}
 
 			// phase 3: quote source
@@ -361,13 +318,13 @@ class StringTemplate
 
 		protected function replace($source, array $data)
 		{
-			foreach($this->matchKeys as $index => $key)
+			foreach($this->tokens->names as $index => $name)
 			{
 				// ignore unset keys
-				if(isset($data[$key]))
+				if(isset($data[$name]))
 				{
 					// get the replacement
-					$replace = $data[$key];
+					$replace = $data[$name];
 
 					// if not a string, resolve
 					if( ! is_string($replace) )
@@ -378,12 +335,12 @@ class StringTemplate
 						}
 						else if (is_callable($replace) )
 						{
-							$replace = call_user_func_array($replace, [$this->source, $source, $key, $index, $this]);
+							$replace = call_user_func_array($replace, [$this->source, $source, $name, $index, $this]);
 						}
 					}
 
 					// replace the original token
-					$source = str_replace($this->matchTokens[$index], (string) $replace, $source);
+					$source = str_replace($this->tokens->matches[$index], (string) $replace, $source);
 				}
 			}
 
@@ -400,4 +357,85 @@ class StringTemplate
 			return (string) $this->process();
 		}
 
+}
+
+/**
+ * Class Tokens
+ *
+ * Holds token matching and replacement data
+ */
+class Tokens
+{
+	/**
+	 * The list of captured tokens
+	 *
+	 * @var string[]
+	 */
+	public $matches;
+
+	/**
+	 * The list of captured token names
+	 *
+	 * @var string[]
+	 */
+	public $names;
+
+	/**
+	 * The name => value replacement hash with which to interpolate the string
+	 *
+	 * @var mixed[]
+	 */
+	public $data;
+
+	/**
+	 * Global regex to capture tokens
+	 *
+	 * @var string
+	 */
+	public $regex;
+
+	/**
+	 * Tokens constructor
+	 *
+	 * @param   string|null   $regex    Optional regex for token matches
+	 */
+	public function __construct($regex)
+	{
+		$this->regex = $regex;
+		$this->data = [];
+
+	}
+
+}
+
+/**
+ * Class Matches
+ *
+ * Holds string matching data
+ */
+class Matches
+{
+	/**
+	 * An array of filter regexes for each token in the source string
+	 *
+	 * @var string[]
+	 */
+	public $data;
+
+	/**
+	 * The full regex to match the source string, including tokens, and capture passed content
+	 *
+	 * This has to be cached as the process to create it is expensive
+	 *
+	 * @var string
+	 */
+	public $regex;
+
+	/**
+	 * Matches constructor
+	 */
+	public function __construct()
+	{
+		$this->data = [];
+	}
 }
