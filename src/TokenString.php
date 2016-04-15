@@ -165,6 +165,7 @@ class TokenString
 		{
 			if(is_array($name))
 			{
+				$name = $this->makeAssociative($name);
 				$this->data = $data === true
 					? $this->data + $name
 					: $name;
@@ -211,6 +212,7 @@ class TokenString
 
 			if(is_array($name))
 			{
+				$name = $this->makeAssociative($name);
 				$this->filters = $regex === true
 					? $this->filters + $name
 					: $name;
@@ -258,7 +260,7 @@ class TokenString
 		public function render($data = null)
 		{
 			$data = $data
-				? array_merge($this->data, $data)
+				? array_merge($this->data, $this->makeAssociative($data))
 				: $this->data;
 			return $this->replace($this->source, $data);
 		}
@@ -433,6 +435,50 @@ class TokenString
 
 			// return
 			return $source;
+		}
+
+		/**
+		 * Checks if passed array is numeric, and if so, converts to associative,
+		 * using the current match values. Output array is clipped to the shorter
+		 * of the two array lengths
+		 *
+		 * @param   array   $values
+		 * @return  array
+		 */
+		protected function makeAssociative($values)
+		{
+			// return if already associative
+			if($this->isAssociative($values))
+			{
+				return $values;
+			}
+
+			// get existing keys
+			$keys       = array_keys($this->matches);
+			$numKeys    = count($keys);
+			$numVals    = count($values);
+
+			// make arrays the same length
+			if($numKeys < $numVals)
+			{
+				$values = array_slice($values, 0, $numKeys);
+			}
+			else if($numKeys > $numVals)
+			{
+				$keys = array_slice($keys, 0, $numVals);
+			}
+
+			// return
+			return array_combine($keys, $values);
+		}
+
+		protected function isAssociative($arr)
+		{
+			foreach ($arr as $key => $value)
+			{
+				if (is_string($key)) return true;
+			}
+			return false;
 		}
 
 
