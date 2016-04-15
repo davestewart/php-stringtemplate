@@ -17,9 +17,7 @@ It can build simple strings, for example:
 
 
 ```php
-echo TokenString::make('I like {foo} !')
-    ->setData('foo', 'FOO')
-    ->value;
+echo new TokenString('I like {foo} !', 'foo', 'FOO');
 
 // I like FOO !
 ```
@@ -29,8 +27,7 @@ You can use callbacks and closures:
 ```php
 $user = User::find(1);
 echo TokenString::make('I like {name} !')
-    ->setData('name', function() use ($user){ return $user->name; })
-    ->value;
+    ->setData('name', function() use ($user){ return $user->name; });
 
 // I like Mr Foo !
 ```
@@ -47,7 +44,7 @@ $data =
     'action'        => 'talking to',
     'user'          => function() use ($user){ return $user->name; },
 ];
-echo TokenString::make($source)->setData($data)->value;
+echo new TokenString($source, $data);
 
 // I like talking to Mr Foo !
 ```
@@ -59,8 +56,8 @@ echo TokenString::make($source)->setData($data)->value;
 Create a new `TokenString` using either the `new` operator, or the static `::make()` method:
 
 ```php
-$string = new TokenString('I like {thing}');
-$string = TokenString::make('I like {thing}');
+$string = new TokenString('I like {thing}', $data);
+$string = TokenString::make('I like {thing}, $data');
 ```
 
 ### Setting data
@@ -77,15 +74,24 @@ Set token data using the `setData()` method, passing a `name` and `value`, or an
 TokenString::make('I like {thing}')->setData('thing', 'apples');
 TokenString::make('I like {thing}')->setData(['thing' => 'apples']);
 ```
+When passing arrays, pass `true` as the second argument to append / merge the new data with any existing data.
 
-Note that you can also pass numeric arrays, which will match existing tokens in match order:
+#### Passing numeric arrays
+
+Note that anywhere you set data, such as...
+
+- `new TokenString()`
+- `StringToken::make()`
+- `->setData()`
+- `->render()`
+
+...you can also pass **numeric arrays**, which will match **existing tokens** in match order:
 
 ```php
-TokenString::make('I like {this} and {that}')->setData(['apples', 'oranges']);
+echo new TokenString('I like {this} and {that}', ['apples', 'oranges']);
 
+// I like apples and oranges
 ```
-
-When passing an asssociative array, pass `true` as the second argument to append / merge the new data with any existing data.
 
 ### Rendering
 
@@ -111,8 +117,7 @@ TokenString has 4 main methods:
 As expected, renders the source string using the current data:
 
 ```php
-echo TokenString::make('I like {thing}')
-    ->setData('thing', 'apples')
+echo TokenString::make('I like {thing}', ['apples'])
     ->render();
 
 // I like apples
@@ -121,10 +126,9 @@ echo TokenString::make('I like {thing}')
 You can also pass in data to temporarily overwrite the current values:
 
 ```php
-$string = TokenString::make('I like {thing}')
-    ->setData('thing', 'apples');
+$string = new TokenString('I like {thing}', ['apples']);
 
-echo $string->render(['thing' => 'oranges']);
+echo $string->render(['oranges']);
 echo $string->render();
 
 // I like oranges
@@ -184,6 +188,8 @@ echo TokenString::make($source)
     ->chain()
     ->chain();
 
+// I like to eat red apples
+
 // without chain
 $string = TokenString::make($source);
 echo $string
@@ -192,7 +198,6 @@ echo $string
     ->setSource($string->render())
     ->setSource($string->render());
 
-// I like to eat red apples
 // I like to eat red apples
 
 ```
