@@ -237,15 +237,15 @@ class TokenString
 			{
 				return (string) $this->render();
 			}
-			if($name === 'source')
+			if(property_exists($this, $name))
 			{
-				return $this->source;
+				return $this->$name;
 			}
 			throw new \Exception("Unknown property '$name'");
 		}
 
 	// ------------------------------------------------------------------------------------------------
-	// RESOLVERS
+	// PUBLIC METHODS
 
 		/**
 		 * Render and return the string by expanding source tokens, without updating the source
