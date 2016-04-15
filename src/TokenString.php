@@ -8,7 +8,7 @@
  * @property Patterns $patterns
  * @property string $source
  * @property string $value
- * @property string $matches
+ * @property array $matches
  */
 class TokenString
 {
@@ -447,6 +447,16 @@ class TokenString
 		{
 			foreach($this->matches as $name => $match)
 			{
+				// test for object
+				$path       = null;
+				
+				// test for object
+				if(strstr($name, '.') !== false)
+				{
+					$path = explode('.', $name);
+					$name = array_shift($path);
+				}
+
 				// ignore unset keys
 				if(isset($data[$name]))
 				{
@@ -464,6 +474,13 @@ class TokenString
 						{
 							$replace = call_user_func($replace, $name);
 						}
+					}
+					
+					// test for object
+					if($path)
+					{
+						$replace = array_reduce($path, function($replace, $prop){ return is_object($replace) ? $replace->$prop : null; }, $replace);
+						$replace = $replace ?: $match;
 					}
 
 					// replace the original token
