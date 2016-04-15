@@ -2,7 +2,7 @@
 
 use davestewart\tokenstring\TokenString;
 
-class ReplacementTests extends PHPUnit_Framework_TestCase
+class ReplacementTest extends PHPUnit_Framework_TestCase
 {
 
 	public function testBasicString()
@@ -14,7 +14,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'string' => 'foo',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -30,7 +30,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'baz' => 'baz',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -44,7 +44,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'function' => function($name){ return 'foo'; },
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -63,7 +63,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'closure' => function($name) use ($object){ return $object->foo; },
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -80,7 +80,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'baz' => 'baz',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -98,7 +98,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'baz' => 'baz',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -117,7 +117,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'baz' => 'baz',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -135,7 +135,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'baz' => 'baz',
 		];
 
-		$output = TokenString::make($source)->setData($data)->value;
+		$output = TokenString::make($source, $data)->value;
 
 		$this->assertEquals($expect, $output);
 	}
@@ -150,8 +150,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'bar' => 'bar',
 		];
 
-		$output = TokenString::make($source)
-					->setData($data)
+		$output = TokenString::make($source, $data)
 					->resolve()
 					->value;
 
@@ -168,8 +167,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 			'bar' => 'bar',
 		];
 
-		$output = TokenString::make($source)
-					->setData($data)
+		$output = TokenString::make($source, $data)
 					->resolve()
 					->setData('baz', 'baz')
 					->value;
@@ -199,9 +197,7 @@ class ReplacementTests extends PHPUnit_Framework_TestCase
 		];
 
 		// resolve string
-		$input  = TokenString::make($source)
-					->setData($data)
-					->resolve();
+		$input  = TokenString::make($source, $data)->resolve();
 
 		// generate final output
 		$output = [];
