@@ -327,16 +327,20 @@ class TokenString
 		 *
 		 * Internally, this method
 		 *
-		 * @param   string          $input          An input string to match
-		 * @param   string          $delimiter      An optional regex delimiter with which to make the matching pattern
+		 * @param   string  $input      An input string to match
+		 * @param   string  $format     An optional regex format to surround the source-matching pattern;
+		 *                                - start and end delimiter characters are mandatory; defaults to back-ticks (`)
+		 *                                - add mode modifiers as required; defaults to case-insensitive (i)
+		 *                                - include add start or end anchors; defaults to both (^ and $)
+		 *                                - use $0 as the placeholder for the source regex
 		 * @return  array|null
 		 */
-		public function match($input, $delimiter = '!')
+		public function match($input, $format = '`^$0$`i')
 		{
 			// get regex
 			if($this->sourceRegex === '')
 			{
-				$this->sourceRegex = $this->getSourceRegex($delimiter);
+				$this->sourceRegex = $this->getSourceRegex($format);
 			}
 
 			// match
@@ -354,10 +358,14 @@ class TokenString
 		/**
 		 * Returns a regex that matches the source string and replacement pattern filters
 		 *
-		 * @param   string          $delimiter      An optional regex delimiter with which to make the matching pattern
+		 * @param   string  $format     An optional regex format to surround the source-matching pattern;
+		 *                                - start and end delimiter characters are mandatory; defaults to back-ticks (`)
+		 *                                - add mode modifiers as required; defaults to case-insensitive (i)
+		 *                                - include add start or end anchors; defaults to both (^ and $)
+		 *                                - use $0 as the placeholder for the source regex
 		 * @return  string
 		 */
-		public function getSourceRegex($delimiter = '!')
+		public function getSourceRegex($format = '`^$0$`i')
 		{
 			// the process of building a suitable match string is complicated due to the
 			// fact that we need to escape the source string - but don't want to escape
@@ -372,6 +380,7 @@ class TokenString
 			// then in 4th phase, swap out the placeholders for the individual regexes.
 
 			// variables
+			$delimiter      = substr($format, 0, 1);
 			$source         = $this->source;
 			$placeholders   = [];
 			$filters        = [];
@@ -402,14 +411,14 @@ class TokenString
 			// phase 4: replace placeholders with filters
 			foreach ($filters as $placeholder => $filter)
 			{
-				$source = str_replace($placeholder, $filter, $source);
+				$source = str_replace($placeholder, str_replace($delimiter, '\\' . $delimiter, $filter), $source);
 			}
 
 			// debug
 			//pd($source);
 
 			// return
-			return $delimiter . $source . $delimiter;
+			return str_replace('$0', $source, $format);
 		}
 
 	// ------------------------------------------------------------------------------------------------
