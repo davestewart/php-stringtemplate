@@ -8,6 +8,7 @@
  * @property Patterns $patterns
  * @property string $source
  * @property string $value
+ * @property string $matches
  */
 class TokenString
 {

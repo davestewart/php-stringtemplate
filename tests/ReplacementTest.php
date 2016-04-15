@@ -35,6 +35,32 @@ class ReplacementTest extends PHPUnit_Framework_TestCase
 		$this->assertEquals($expect, $output);
 	}
 
+	public function testConstructorArray()
+	{
+		$expect = 'foo';
+		$source = '{string}';
+		$data   = [ 'foo' ];
+
+		$string = new TokenString($source, $data);
+		$output = $string->value;
+
+		$this->assertEquals($expect, $output);
+	}
+
+	public function testMakeArray()
+	{
+		$expect = 'foo';
+		$source = '{string}';
+		$data   = [ 'foo' ];
+
+		$string = TokenString::make($source, $data);
+		$output = $string->value;
+
+		$this->assertEquals($expect, $output);
+	}
+
+
+
 	public function testFunction()
 	{
 		$expect = 'foo';
