@@ -185,14 +185,18 @@ class TokenString
 		}
 
 		/**
-		 * Sets match patterns for individual tokens
+		 * Sets filter patterns for individual source tokens
 		 *
 		 * Pass in:
 		 *
 		 *  - a name and regex
-		 *  - a single name => value hash, with an optional boolean true to merge patterns
+		 *  - a single name => value hash
+		 *  - a single numeric array
 		 *
-		 * Values should be regular expressions that match the expected token content
+		 * Note that:
+		 *
+		 *  - for arrays, an optional boolean true to merge patterns
+		 *  - values should be regular expressions that match the expected token content
 		 *
 		 * DO NOT (!) include:
 		 *
@@ -205,7 +209,7 @@ class TokenString
 		 * @param   array|null      $regex      The regex pattern to match potential token content
 		 * @return  TokenString
 		 */
-		public function setMatch($name, array $regex = null)
+		public function setFilter($name, array $regex = null)
 		{
 			// clear existing match
 			$this->sourceRegex = '';
