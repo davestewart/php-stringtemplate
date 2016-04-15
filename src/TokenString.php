@@ -182,23 +182,29 @@ class TokenString
 		 */
 		public function setData($name, $data = null)
 		{
+			// if an array is passed
 			if(is_array($name))
 			{
+				// clear data if true is not passed
+				if($data !== true)
+				{
+					$this->data = [];
+				}
+
+				// convert numeric arrays to associative, using source matches
 				$name = $this->makeAssociative($name);
-				$this->data = $data === true
-					? $this->data + $name
-					: $name;
+
+				// add values, one at a time
+				foreach ($name as $key => $value)
+				{
+					$this->setData($key, $value);
+				}
 			}
+
+			// if a value is passed
 			else
 			{
-				if($data)
-				{
-					$this->data[$name] = $data;
-				}
-				else
-				{
-					unset($this->data[$name]);
-				}
+				$this->data[$name] = $data;
 			}
 			return $this;
 		}
