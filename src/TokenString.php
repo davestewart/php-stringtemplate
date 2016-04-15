@@ -254,14 +254,26 @@ class TokenString
 		 * processing, for example you're running in a loop and only need the returned
 		 * value
 		 *
+		 * Note that you can also pass in multiple parameters which will match the source tokens
+		 * as they are found
+		 *
 		 * @param   array   $data       Optional data to populate the string with; is merged with the existing data
 		 * @return  string
 		 */
 		public function render($data = null)
 		{
-			$data = $data
-				? array_merge($this->data, $this->makeAssociative($data))
-				: $this->data;
+			if(func_num_args() == 0)
+			{
+				$data = $this->data;
+			}
+			else if(is_array($data))
+			{
+				$data = array_merge($this->data, $this->makeAssociative($data));
+			}
+			else
+			{
+				$data = array_merge($this->data, $this->makeAssociative(func_get_args()));
+			}
 			return $this->replace($this->source, $data);
 		}
 
