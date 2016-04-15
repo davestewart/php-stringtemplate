@@ -63,16 +63,23 @@ class TokenStringConfig
 		 * @example             {([a-z]+)}      {token}
 		 * @example             \${([a-z]+)}    ${token}
 		 *
-		 * @param   string      $value          The regex pattern WITHOUT delimiters
-		 * @param   string      $modifier       An optional mode modifier string
-		 *
+		 * @param   string $value    The regex pattern WITHOUT delimiters
+		 * @param   string $modifier An optional mode modifier string
 		 * @return  $this
+		 * @throws  \Exception
 		 */
 		public function setToken($value, $modifier = '')
 		{
 			// test
-			preg_match('/^(.)(.)(.)$/', $value, $matches);
-			pr($matches);
+			if( ! preg_match('/(\(.+?\))/', $value) )
+			{
+				throw new \Exception('StringToken `token` matching pattern MUST contain capturing parenthesis');
+			}
+
+			if(strpos($value, '^') === 0 || preg_match('/[^\\\\]\$$/', $value))
+			{
+				throw new \Exception('StringToken `token` matching pattern MUST NOT contain anchors');
+			}
 
 			// set
 			$this->token = static::make($value, $this->delimiter, $modifier);
@@ -105,14 +112,18 @@ class TokenStringConfig
 		 * @example             source$         Must match end of string
 		 * @example             source          Must match part of the string
 		 *
-		 * @param   string      $value          The regex pattern WITHOUT delimiters
-		 * @param   string      $modifier       An optional mode modifier string
+		 * @param   string $value    The regex pattern WITHOUT delimiters
+		 * @param   string $modifier An optional mode modifier string
 		 * @return  $this
+		 * @throws  \Exception
 		 */
 		public function setSource($value, $modifier = '')
 		{
 			// test
-			preg_match('/.+/', $value, $matches);
+			if(strstr($value, 'source') === FALSE)
+			{
+				throw new \Exception('StringToken `source` matching pattern MUST contain the string "source"');
+			}
 
 			// set
 			$this->source = static::make($value, $this->delimiter, $modifier);;
