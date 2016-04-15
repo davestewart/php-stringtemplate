@@ -56,7 +56,7 @@ echo TokenString::make($source)->setData($data)->value;
 
 ### Instantiation
 
-Create a new `TokenString` using either the `new` operator, or the static '::make()' method:
+Create a new `TokenString` using either the `new` operator, or the static `::make()` method:
 
 ```php
 $string = new TokenString('I like {thing}');
@@ -111,7 +111,7 @@ TokenString has 4 main methods:
 As expected, renders the source string using the current data:
 
 ```php
-echo TokenString::make('I like {thing})
+echo TokenString::make('I like {thing}')
     ->setData('thing', 'apples')
     ->render();
 
@@ -251,7 +251,7 @@ You can get even more granular by assigning **filters** for tokens, using the `s
 
 The following (slightly lengthy) example expands on the above code by allowing only dates and slugs:
 
-```
+```php
 // data
 $source = '/blog/{date}/posts/{slug}/';
 $filters =
@@ -332,7 +332,7 @@ All have been covered above.
 
 Dumping out any `StringToken` instance reveals its internals (this example is from the [Usage examples](#Usage-examples) section):
 
-```
+```php
 TokenString {#341 ▼
   #source: "I {feeling} {thing} !"
   #data: array:4 [▼
