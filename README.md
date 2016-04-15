@@ -78,14 +78,14 @@ TokenString::make('I like {thing}')->setData('thing', 'apples');
 TokenString::make('I like {thing}')->setData(['thing' => 'apples']);
 ```
 
+When passing an associative array, pass `true` as the second argument to append / merge the new data with any existing data.
+
 Note that you can also pass numeric arrays, which will match existing tokens in match order:
 
 ```php
 TokenString::make('I like {this} and {that}')->setData(['apples', 'oranges']);
 
 ```
-
-When passing an asssociative array, pass `true` as the second argument to append / merge the new data with any existing data.
 
 ### Rendering
 
@@ -125,9 +125,9 @@ $string = TokenString::make('I like {thing}')
     ->setData('thing', 'apples');
 
 echo $string->render(['thing' => 'oranges']);
-echo $string->render();
-
 // I like oranges
+
+echo $string->render();
 // I like apples
 ```
 
@@ -137,9 +137,9 @@ As before, you can also pass a numeric array which will match available tokens a
 
 ```php
 echo TokenString::make('I like {this} and {that}')->render(['apples', 'oranges']);
-echo TokenString::make('I like {this} and {that}')->render('apples', 'oranges');
-
 // I like apples and oranges
+
+echo TokenString::make('I like {this} and {that}')->render('apples', 'oranges');
 // I like apples and oranges
 ```
 
@@ -150,16 +150,16 @@ Resolve is a useful optimisation method; it allows you to expand source tokens w
 ```php
 $string = TokenString::make('{name} likes {thing}')->setData('name', 'Ben');
 echo $string->source;
+// {name} likes {thing}
 
 $string->resolve(true);
 echo $string->source;
+// Ben likes {thing}
 
 echo $string->render('apples');
-echo $string->render('oranges');
-
-// {name} likes {thing}
-// Ben likes {thing}
 // Ben likes apples
+
+echo $string->render('oranges');
 // Ben likes oranges
 ```
 
@@ -183,6 +183,8 @@ echo TokenString::make($source)
     ->chain()
     ->chain()
     ->chain();
+    
+// I like to eat red apples
 
 // without chain
 $string = TokenString::make($source);
@@ -192,7 +194,6 @@ echo $string
     ->setSource($string->render())
     ->setSource($string->render());
 
-// I like to eat red apples
 // I like to eat red apples
 
 ```
