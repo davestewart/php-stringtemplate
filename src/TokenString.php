@@ -449,6 +449,14 @@ class TokenString
 			{
 				// test for object
 				$path       = null;
+				$filters    = null;
+
+				// test for filters
+				if(strstr($name, '|') !== false)
+				{
+					$filters    = explode('|', $name);
+					$name       = array_shift($filters);
+				}
 				
 				// test for object
 				if(strstr($name, '.') !== false)
@@ -481,6 +489,12 @@ class TokenString
 					{
 						$replace = array_reduce($path, function($replace, $prop){ return is_object($replace) ? $replace->$prop : null; }, $replace);
 						$replace = $replace ?: $match;
+					}
+
+					// run filters
+					if($filters)
+					{
+						$replace = array_reduce($filters, function($replace, $filter){ return is_callable($filter) ? call_user_func($filter, $replace) : $replace; }, $replace);
 					}
 
 					// replace the original token

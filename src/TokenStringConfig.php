@@ -15,7 +15,7 @@ class TokenStringConfig
 
 		public function __construct()
 		{
-			$this->setToken('{([a-z][\.\w]*)}', 'i');
+			$this->setToken('{([a-z][\.\w]*(\|[\|\w]+)?)}', 'i');
 			$this->setSource('^source$', 'i');
 		}
 
