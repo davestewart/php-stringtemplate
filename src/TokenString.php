@@ -294,20 +294,18 @@ class TokenString
 		}
 
 		/**
-		 * Special method to populate the source template, but return a chainable copy of the
+		 * Special method to expand variables, and return the updated of the
 		 * original TokenString instance
 		 *
 		 * Use this when replacements themselves return further tokens you need to
-		 * populate via process() but you don't want to update the original source string
+		 * populate via render() but you don't want to update the original source string
 		 *
 		 * @param   array|null      $data
 		 * @return  TokenString
 		 */
 		public function chain($data = null)
 		{
-			return self::make($this->render($data), $this->tokenRegex)
-				->setData($this->data)
-				->setMatch($this->filters);
+			return $this->setSource($this->render($data ?: $this->data));
 		}
 
 		/**
