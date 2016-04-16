@@ -15,5 +15,4 @@ class FunctionRenderer extends TokenRenderer
 		return call_user_func($this->value, $token->name, $token, $source);
 	}
 
-
 }

@@ -493,7 +493,7 @@ class TokenString
 						{
 							if(is_callable($filter))
 							{
-								$value = call_user_func($filter, $value);
+								$value = $filter($value);
 							}
 						}
 					}
