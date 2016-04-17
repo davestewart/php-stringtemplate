@@ -9,47 +9,38 @@ use davestewart\tokenstring\renderers\TokenRenderer;
  *
  * @property Patterns $patterns
  * @property string $source
+ * @property string[] $tokens
  * @property string $value
  */
 class TokenString
 {
-	// ------------------------------------------------------------------------------------------------
-	// CONFIGURATION
 
-		/**
-		 * Global configuration options
-		 *
-		 * @var TokenStringConfig
-		 */
-		protected static $config;
+	// ------------------------------------------------------------------------------------------------
+	// STATIC METHODS
 
 		/**
 		 * Static configuration method
 		 *
 		 * See the TokenStringConfig class for more info
 		 *
-		 * @param   string  $name           The configuration key
-		 * @param   string  $value,...      Variable configuration values
 		 * @return  TokenStringConfig
 		 */
-		public static function configure($name = null, $value = null)
+		public static function config()
 		{
-			// set up new configuration
-			if(self::$config == null)
-			{
-				self::$config = new TokenStringConfig();
-			}
+			return TokenStringConfig::instance();
+		}
 
-			// configure
-			if($name && $value)
-			{
-				$method     = 'set' . ucfirst($name);
-				$params     = array_slice(func_get_args(), 1);
-				call_user_func_array([self::$config, $method], $params);
-			}
-			
-			// return
-			return self::$config;
+		/**
+		 * Chainable TokenString constructor
+		 *
+		 * @param   string          $source         An optional source string
+		 * @param   string|null     $data           Optional replacement data
+		 * @return  TokenString
+		 */
+		public static function make($source = '', $data = null)
+		{
+			return new TokenString($source, $data);
+		}
 		}
 
 	
@@ -107,10 +98,9 @@ class TokenString
 		public function __construct($source = '', $data = null)
 		{
 			// properties
-			$this->data             = [];
-			$this->tokens           = [];
-			$this->filters          = [];
-			$this->patterns         = new Patterns(self::$config->getToken());
+			$this->data     = [];
+			$this->tokens   = [];
+			$this->regex    = TokenStringConfig::instance()->getToken();
 
 			// parameters
 			if($source)
@@ -123,21 +113,23 @@ class TokenString
 			}
 		}
 
-		/**
-		 * Chainable TokenString constructor
-		 *
-		 * @param   string          $source         An optional source string
-		 * @param   string|null     $data           Optional replacement data
-		 * @return  TokenString
-		 */
-		public static function make($source = '', $data = null)
-		{
-			return new TokenString($source, $data);
-		}
-
 
 	// ------------------------------------------------------------------------------------------------
 	// ACCESSORS
+
+		public function __get($name)
+		{
+			if($name === 'value')
+			{
+				return (string) $this->render();
+			}
+			if(property_exists($this, $name))
+			{
+				return $this->$name;
+			}
+			throw new \Exception("Unknown property '$name'");
+		}
+
 
 		/**
 		 * Set the source string
@@ -151,10 +143,9 @@ class TokenString
 		{
 			// properties
 			$this->source = $source;
-			$this->patterns->source = '';
 
 			// match source
-			preg_match_all($this->patterns->token, $source, $matches);
+			preg_match_all($this->regex, $source, $matches);
 
 			// create basic "selector" => "{match}" array
 			$this->tokens = array_combine($matches[1], $matches[0]);
@@ -176,6 +167,7 @@ class TokenString
 		 *
 		 *  - a name and value
 		 *  - a single token => value hash, with an optional true to merge data
+		 *  - a single numeric array
 		 *
 		 * Values can be:
 		 *
@@ -189,97 +181,32 @@ class TokenString
 		 */
 		public function setData($name, $value = null)
 		{
-			// if an array is passed
-			if(is_array($name))
+			// parameters
+			$data   = is_string($name)
+						? [$name => $value]
+						: $name;
+
+			// set associative
+			$data   = $this->makeAssociative($data);
+
+			// set data
+			foreach($data as $key => $value)
 			{
-				// clear data if true is not passed
-				if($value !== true)
-				{
-					$this->data = [];
-				}
-
-				// convert numeric arrays to associative, using source matches
-				$name = $this->makeAssociative($name);
-
-				// add values, one at a time
-				foreach ($name as $k => $v)
-				{
-					$this->setData($k, $v);
-				}
+				$this->data[$key] = is_string($value)
+									? $value
+									: TokenRenderer::make($value);
 			}
 
-			// if a value is passed
-			else
-			{
-
-				$this->data[$name] = TokenRenderer::make($value);
-			}
+			// return
 			return $this;
 		}
 
-		/**
-		 * Sets filter patterns for individual source tokens
-		 *
-		 * Pass in:
-		 *
-		 *  - a name and regex
-		 *  - a single name => value hash
-		 *  - a single numeric array
-		 *
-		 * Note that:
-		 *
-		 *  - for arrays, an optional boolean true to merge patterns
-		 *  - values should be regular expressions that match the expected token content
-		 *
-		 * DO NOT (!) include:
-		 *
-		 *  - regex delimiters
-		 *  - capturing parentheses
-		 *
-		 * These will be added for you
-		 *
-		 * @param   string|array    $name       The name of the token to match
-		 * @param   array|null      $regex      The regex pattern to match potential token content
-		 * @return  TokenString
-		 */
-		public function setFilter($name, array $regex = null)
+		public function clearData()
 		{
-			// clear existing match
-			$this->patterns->source = '';
-
-			if(is_array($name))
-			{
-				$name = $this->makeAssociative($name);
-				$this->filters = $regex === true
-					? $this->filters + $name
-					: $name;
-			}
-			else
-			{
-				if($regex)
-				{
-					$this->filters[$name] = $regex;
-				}
-				else
-				{
-					unset($this->filters[$name]);
-				}
-			}
+			$this->data = [];
 			return $this;
 		}
 
-		public function __get($name)
-		{
-			if($name === 'value')
-			{
-				return (string) $this->render();
-			}
-			if(property_exists($this, $name))
-			{
-				return $this->$name;
-			}
-			throw new \Exception("Unknown property '$name'");
-		}
 
 	// ------------------------------------------------------------------------------------------------
 	// PUBLIC METHODS
@@ -309,7 +236,9 @@ class TokenString
 			else
 			{
 				// grab data
-				$data = is_array($data) ? $data : func_get_args();
+				$data = $data === (array) $data // optimised for small arrays; see: http://stackoverflow.com/questions/3470990/is-micro-optimization-worth-the-time
+					? $data
+					: func_get_args();
 
 				// ensure numeric arrays are converted
 				$data = $this->makeAssociative($data);
@@ -473,7 +402,10 @@ class TokenString
 
 		protected function replace($source, array $data)
 		{
-			foreach($this->tokens as $name => /** @var Token */ $token)
+			/** @var Token $token */
+			$token = null;
+
+			foreach($this->tokens as $name => $token)
 			{
 				if(isset($data[$token->name]))
 				{
@@ -507,6 +439,10 @@ class TokenString
 			return $source;
 		}
 
+
+	// ------------------------------------------------------------------------------------------------
+	// UTILITIES
+
 		/**
 		 * Checks if passed array is numeric, and if so, converts to associative,
 		 * using the current match values. Output array is clipped to the shorter
@@ -515,46 +451,34 @@ class TokenString
 		 * @param   array   $values
 		 * @return  array
 		 */
-		protected function makeAssociative($values)
+		public function makeAssociative($values)
 		{
-			// return if already associative
-			if($this->isAssociative($values))
+			// convert if numeric
+			if(array_values($values) == $values)
 			{
-				return $values;
+				// get existing keys
+				$names       = array_keys($this->tokens);
+				$numNames    = count($names);
+				$numValues   = count($values);
+
+				// make arrays the same length
+				if($numNames < $numValues)
+				{
+					$values = array_slice($values, 0, $numNames);
+				}
+				else if($numNames > $numValues)
+				{
+					$names = array_slice($names, 0, $numValues);
+				}
+
+				// return
+				return array_combine($names, $values);
 			}
 
-			// get existing keys
-			$names       = array_keys($this->tokens);
-			$numNames    = count($names);
-			$numValues   = count($values);
-
-			// make arrays the same length
-			if($numNames < $numValues)
-			{
-				$values = array_slice($values, 0, $numNames);
-			}
-			else if($numNames > $numValues)
-			{
-				$names = array_slice($names, 0, $numValues);
-			}
-
-			// return
-			return array_combine($names, $values);
+			// otherwise, return
+			return $values;
 		}
 
-		protected function isAssociative($arr)
-		{
-			foreach ($arr as $key => $value)
-			{
-				if (is_string($key)) return true;
-			}
-			return false;
-		}
-
-
-	// ------------------------------------------------------------------------------------------------
-	// UTILITIES
-	
 		public function __toString()
 		{
 			return (string) $this->render();
@@ -576,5 +500,5 @@ class Patterns
 }
 
 
-TokenString::configure();
+TokenString::config();
 
