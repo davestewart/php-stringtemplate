@@ -7,10 +7,10 @@ use davestewart\tokenstring\renderers\TokenRenderer;
  *
  * @package davestewart\tokenstring
  *
- * @property Patterns $patterns
  * @property string $source
  * @property string[] $tokens
  * @property string $value
+ * @property string $regex
  */
 class TokenString
 {
@@ -41,11 +41,29 @@ class TokenString
 		{
 			return new TokenString($source, $data);
 		}
+
+		/**
+		 * Chainable TokenStringMatcher constructor
+		 *
+		 * @param   TokenString|string  $source     An existing TokenString instance or a new string
+		 * @param   array               $filters
+		 * @return  TokenStringMatcher
+		 */
+		public static function matcher($source = '', array $filters = [])
+		{
+			return new TokenStringMatcher($source, $filters);
 		}
 
-	
+
 	// ------------------------------------------------------------------------------------------------
 	// PROPERTIES
+
+		/**
+		 * The regex to match only a {token} and (capture) its name string
+		 *
+		 * @var string
+		 */
+		protected $regex;
 
 		/**
 		 * The source string comprising of text and {tokens}
@@ -67,23 +85,6 @@ class TokenString
 		 * @var TokenRenderer[]
 		 */
 		protected $data;
-
-		/**
-		 * A name => regex hash of token content filters
-		 *
-		 * @var string[]
-		 */
-		protected $filters;
-
-		/**
-		 * Regex patterns for matching tokens and source
-		 *
-		 * - The regex to match only a {token} and (capture) its name string
-		 * - The regex to both match in full, and capture token content from, the source string
-		 *
-		 * @var Patterns
-		 */
-		protected $patterns;
 
 
 	// ------------------------------------------------------------------------------------------------
@@ -300,102 +301,6 @@ class TokenString
 			return $this->setSource($this->render($data ?: $this->data));
 		}
 
-		/**
-		 * Attempts to match an arbitrary string against the current template
-		 *
-		 * Use this when you need to check if an incoming string matches the constraints
-		 *
-		 * Internally, this method
-		 *
-		 * @param   string  $input      An input string to match
-		 * @param   string  $format     An optional regex format to surround the source-matching pattern.
-		 *                              See the TokenStringConfig class for more info
-		 * @return  array|null
-		 */
-		public function match($input, $format = null)
-		{
-			// get regex
-			if($this->patterns->source === '')
-			{
-				$this->patterns->source = $this->getSourceRegex($format);
-			}
-
-			// match
-			preg_match($this->patterns->source, $input, $matches);
-
-			// convert matches to named capture array
-			if(count($matches))
-			{
-				array_shift($matches);
-				return array_combine(array_keys($this->tokens), $matches);
-			}
-			return null;
-		}
-
-		/**
-		 * Returns a regex that matches the source string and replacement pattern filters
-		 *
-		 * @param   string  $format     An optional regex format to surround the source-matching pattern.
-		 *                              See the TokenStringConfig class for more info
-		 * @return  string
-		 */
-		public function getSourceRegex($format = null)
-		{
-			// the process of building a suitable match string is complicated due to the
-			// fact that we need to escape the source string - but don't want to escape
-			// either the original tokens, or the the regex matches that will match the
-			// target string. as such, we need to employ some substitution trickery, and
-			// build the final regex in 4 phases.
-			//
-			// the 1st phase sets up the data we will need for the following phases,
-			// including adding capturing brackets around the regexps. the 2nd phase swaps
-			// the original tokens for placeholders which are formatted in a way be immune
-			// to escaping; this will allow us to escape the entire string in the 3rd phase,
-			// then in 4th phase, swap out the placeholders for the individual regexes.
-
-			// variables
-			$format         = $format ?: self::$config->getSource();
-			$delimiter      = substr($format, 0, 1);
-			$source         = $this->source;
-			$placeholders   = [];
-			$filters        = [];
-
-			// phase 1: build arrays
-			foreach ($this->tokens as $name => $token)
-			{
-				// variables
-				$placeholder        = '%%' . strtoupper($name) . '%%';
-				$filter             = isset($this->filters[$name])
-										? $this->filters[$name]
-										: '.*';
-
-				// update arrays
-				$placeholders[$token->match]    = $placeholder;
-				$filters[$placeholder]          = "($filter)";
-			}
-
-			// phase 2: replace tokens with placeholders
-			foreach ($placeholders as $match => $placeholder)
-			{
-				$source = str_replace($match, $placeholder, $source);
-			}
-
-			// phase 3: quote source
-			$source = preg_quote($source, $delimiter);
-
-			// phase 4: replace placeholders with filters
-			foreach ($filters as $placeholder => $filter)
-			{
-				// also, escape any delimiter characters found in the filter replacements
-				$source = str_replace($placeholder, str_replace($delimiter, '\\' . $delimiter, $filter), $source);
-			}
-
-			// debug
-			//pd($source);
-
-			// return
-			return str_replace('source', $source, $format);
-		}
 
 	// ------------------------------------------------------------------------------------------------
 	// PROTECTED METHODS
@@ -485,20 +390,6 @@ class TokenString
 		}
 
 }
-
-class Patterns
-{
-	public $source;
-
-	public $token;
-
-	public function __construct($token, $source = '')
-	{
-		$this->token    = $token;
-		$this->source   = $source;
-	}
-}
-
 
 TokenString::config();
 
