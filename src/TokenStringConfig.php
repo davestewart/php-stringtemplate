@@ -3,20 +3,46 @@
 /**
  * Class TokenStringConfig
  *
- * @package davestewart\tokenstring
- *
  * Manages creation of regex patterns for token replacement and source matching
+ *
+ * @package davestewart\tokenstring
  */
 class TokenStringConfig
 {
 
 	// ------------------------------------------------------------------------------------------------
-	// SETUP
+	// INSTANTIATION
 
-		public function __construct()
+		/**
+		 * @var TokenStringConfig
+		 */
+		private static $instance;
+
+		/**
+		 * Gets the TokenStringConfig instance
+		 *
+		 * @return TokenStringConfig
+		 */
+		public static function instance()
 		{
-			$this->setToken('{([a-z][\.\w]*(\|[\|\w]+)?)}', 'i');
-			$this->setSource('^source$', 'i');
+			if( ! static::$instance )
+			{
+				static::$instance = new TokenStringConfig();
+			}
+			return static::$instance;
+		}
+
+		/**
+		 * Protected TokenStringConfig constructor
+		 *
+		 * Retrieve TokenStringConfig via:
+		 *
+		 *  - TokenStringConfig::instance()
+		 *  - TokenString::config()
+		 */
+		protected function __construct()
+		{
+			$this->reset();
 		}
 
 
@@ -28,7 +54,8 @@ class TokenStringConfig
 		 *
 		 * @var string
 		 */
-		protected $delimiter = '~';
+		protected $delimiter;
+
 
 		public function getDelimiter() { return $this->delimiter; }
 
@@ -132,6 +159,13 @@ class TokenStringConfig
 			return $this;
 		}
 
+		public function reset()
+		{
+			$this->setDelimiter('~');
+			$this->setToken('{([a-z][\.\w]*(\|[\|\w]+)?)}', 'i');
+			$this->setSource('^source$', 'i');
+		}
+
 
 	// ------------------------------------------------------------------------------------------------
 	// UTILS
@@ -140,6 +174,5 @@ class TokenStringConfig
 		{
 			return $delimiter . $value . $delimiter . $modifier;
 		}
-
 
 }
