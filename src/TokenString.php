@@ -1,30 +1,69 @@
 <?php namespace davestewart\tokenstring;
 
+use davestewart\tokenstring\renderers\TokenRenderer;
+
 /**
  * Class TokenString
  *
  * @package davestewart\tokenstring
  *
  * @property string $source
+ * @property string[] $tokens
  * @property string $value
+ * @property string $regex
  */
 class TokenString
 {
+
 	// ------------------------------------------------------------------------------------------------
-	// STATIC PROPERTIES
+	// STATIC METHODS
 
 		/**
-		 * The global regex to match a {token} and (capture) its name
+		 * Static configuration method
 		 *
-		 * The pattern should have start and ending delimiters
+		 * See the TokenStringConfig class for more info
 		 *
-		 * @var string $_pattern
+		 * @return  TokenStringConfig
 		 */
-		public static $regex = '!{([\.\w]+)}!';
+		public static function config()
+		{
+			return TokenStringConfig::instance();
+		}
 
-	
+		/**
+		 * Chainable TokenString constructor
+		 *
+		 * @param   string          $source         An optional source string
+		 * @param   string|null     $data           Optional replacement data
+		 * @return  TokenString
+		 */
+		public static function make($source = '', $data = null)
+		{
+			return new TokenString($source, $data);
+		}
+
+		/**
+		 * Chainable TokenStringMatcher constructor
+		 *
+		 * @param   TokenString|string  $source     An existing TokenString instance or a new string
+		 * @param   array               $filters
+		 * @return  TokenStringMatcher
+		 */
+		public static function matcher($source = '', array $filters = [])
+		{
+			return new TokenStringMatcher($source, $filters);
+		}
+
+
 	// ------------------------------------------------------------------------------------------------
 	// PROPERTIES
+
+		/**
+		 * The regex to match only a {token} and (capture) its name string
+		 *
+		 * @var string
+		 */
+		protected $regex;
 
 		/**
 		 * The source string comprising of text and {tokens}
@@ -34,43 +73,18 @@ class TokenString
 		protected $source;
 
 		/**
-		 * The name => value replacement hash with which to interpolate the string
-		 *
-		 * @var mixed[]
-		 */
-		protected $data;
-
-		/**
 		 * A name => match hash of tokens matches
 		 *
-		 * @var string[]
+		 * @var Token[]
 		 */
-		protected $matches;
+		protected $tokens;
 
 		/**
-		 * A name => regex hash of token content filters
+		 * The name => value replacement hash with which to interpolate the string
 		 *
-		 * @var string[]
+		 * @var TokenRenderer[]
 		 */
-		protected $filters;
-
-		/**
-		 * The global regex to match a {token} and (capture) its name
-		 *
-		 * The pattern should have start and ending delimiters
-		 *
-		 * @var string $tokenRegex
-		 */
-		protected $tokenRegex;
-
-		/**
-		 * The full regex to match the source string, including tokens, and capture passed content
-		 *
-		 * This has to be cached as the process to create it is expensive
-		 *
-		 * @var string
-		 */
-		protected $sourceRegex;
+		protected $data;
 
 
 	// ------------------------------------------------------------------------------------------------
@@ -80,160 +94,29 @@ class TokenString
 		 * StringTemplate constructor
 		 *
 		 * @param   string          $source         An optional source string
-		 * @param   string|null     $localRegex     An optional token-matching regex, defaults to the global token regex {token}
+		 * @param   string|null     $data           Optional replacement data
 		 */
-		public function __construct($source = '', $localRegex = null)
+		public function __construct($source = '', $data = null)
 		{
-			// parameters
-			if($localRegex == null)
-			{
-				$localRegex = self::$regex;
-			}
-
 			// properties
-			$this->data             = [];
-			$this->matches          = [];
-			$this->filters          = [];
-			$this->tokenRegex       = $localRegex;
-			$this->sourceRegex      = '';
-			$this->setSource($source);
-		}
+			$this->data     = [];
+			$this->tokens   = [];
+			$this->regex    = TokenStringConfig::instance()->getToken();
 
-		/**
-		 * Chainable TokenString constructor
-		 *
-		 * Passing a regex updates the global regex pattern
-		 *
-		 * @param   string          $source         An optional source string
-		 * @param   string|null     $globalRegex    An optional token-matching regex, defaults to the global token regex {token}
-		 * @return  TokenString
-		 */
-		public static function make($source = '', $globalRegex = null)
-		{
-			if($globalRegex)
+			// parameters
+			if($source)
 			{
-				self::$regex = $globalRegex;
+				$this->setSource($source);
 			}
-			return new TokenString($source, $globalRegex);
+			if($data)
+			{
+				$this->setData($data);
+			}
 		}
 
 
 	// ------------------------------------------------------------------------------------------------
 	// ACCESSORS
-
-		/**
-		 * Set the source string
-		 *
-		 * Also sets tokens arrays
-		 *
-		 * @param   string      $source
-		 * @return  TokenString
-		 */
-		public function setSource($source)
-		{
-			// properties
-			$this->source       = $source;
-			$this->sourceRegex  = '';
-
-			//matches
-			preg_match_all($this->tokenRegex, $source, $matches);
-			$this->matches      = array_combine($matches[1], $matches[0]);
-
-			// return
-			return $this;
-		}
-
-		/**
-		 * Sets the token replacement data
-		 *
-		 * Pass in:
-		 *
-		 *  - a name and value
-		 *  - a single token => value hash, with an optional true to merge data
-		 *
-		 * Values can be:
-		 *
-		 *  - strings, numbers, or any stringable value
-		 *  - a TokenString instance, for nested replacements
-		 *  - a function that returns a string, of the form: function($name, $source, $instance) { }
-		 *
-		 * @param   string|array $name
-		 * @param   array|null   $data
-		 * @return  TokenString
-		 */
-		public function setData($name, $data = null)
-		{
-			if(is_array($name))
-			{
-				$name = $this->makeAssociative($name);
-				$this->data = $data === true
-					? $this->data + $name
-					: $name;
-			}
-			else
-			{
-				if($data)
-				{
-					$this->data[$name] = $data;
-				}
-				else
-				{
-					unset($this->data[$name]);
-				}
-			}
-			return $this;
-		}
-
-		/**
-		 * Sets filter patterns for individual source tokens
-		 *
-		 * Pass in:
-		 *
-		 *  - a name and regex
-		 *  - a single name => value hash
-		 *  - a single numeric array
-		 *
-		 * Note that:
-		 *
-		 *  - for arrays, an optional boolean true to merge patterns
-		 *  - values should be regular expressions that match the expected token content
-		 *
-		 * DO NOT (!) include:
-		 *
-		 *  - regex delimiters
-		 *  - capturing parentheses
-		 *
-		 * These will be added for you
-		 *
-		 * @param   string|array    $name        The name of the token to match
-		 * @param   array|null      $regex      The regex pattern to match potential token content
-		 * @return  TokenString
-		 */
-		public function setFilter($name, array $regex = null)
-		{
-			// clear existing match
-			$this->sourceRegex = '';
-
-			if(is_array($name))
-			{
-				$name = $this->makeAssociative($name);
-				$this->filters = $regex === true
-					? $this->filters + $name
-					: $name;
-			}
-			else
-			{
-				if($regex)
-				{
-					$this->filters[$name] = $regex;
-				}
-				else
-				{
-					unset($this->filters[$name]);
-				}
-			}
-			return $this;
-		}
 
 		public function __get($name)
 		{
@@ -247,6 +130,84 @@ class TokenString
 			}
 			throw new \Exception("Unknown property '$name'");
 		}
+
+
+		/**
+		 * Set the source string
+		 *
+		 * Also sets tokens arrays
+		 *
+		 * @param   string      $source
+		 * @return  TokenString
+		 */
+		public function setSource($source)
+		{
+			// properties
+			$this->source = $source;
+
+			// match source
+			preg_match_all($this->regex, $source, $matches);
+
+			// create basic "selector" => "{match}" array
+			$this->tokens = array_combine($matches[1], $matches[0]);
+
+			// convert basic array to an array of Token objects
+			foreach ($this->tokens as $selector => $match)
+			{
+				$this->tokens[$selector] = new Token($selector, $match);
+			}
+
+			// return
+			return $this;
+		}
+
+		/**
+		 * Sets replacement data
+		 *
+		 * Pass in:
+		 *
+		 *  - a name and value
+		 *  - a single token => value hash, with an optional true to merge data
+		 *  - a single numeric array
+		 *
+		 * Values can be:
+		 *
+		 *  - strings, numbers, or any stringable value
+		 *  - a TokenString instance, for nested replacements
+		 *  - a function that returns a string, of the form: function($name, $source, $instance) { }
+		 *
+		 * @param   string|array $name
+		 * @param   array|null   $value
+		 * @return  TokenString
+		 */
+		public function setData($name, $value = null)
+		{
+			// parameters
+			$data   = is_string($name)
+						? [$name => $value]
+						: $name;
+
+			// set associative
+			$data   = $this->makeAssociative($data);
+
+			// set data
+			foreach($data as $key => $value)
+			{
+				$this->data[$key] = is_string($value)
+									? $value
+									: TokenRenderer::make($value);
+			}
+
+			// return
+			return $this;
+		}
+
+		public function clearData()
+		{
+			$this->data = [];
+			return $this;
+		}
+
 
 	// ------------------------------------------------------------------------------------------------
 	// PUBLIC METHODS
@@ -266,18 +227,34 @@ class TokenString
 		 */
 		public function render($data = null)
 		{
+			// no data passed, just use stored data
 			if(func_num_args() == 0)
 			{
 				$data = $this->data;
 			}
-			else if(is_array($data))
-			{
-				$data = array_merge($this->data, $this->makeAssociative($data));
-			}
+
+			// otherwise, convert and merge
 			else
 			{
-				$data = array_merge($this->data, $this->makeAssociative(func_get_args()));
+				// grab data
+				$data = $data === (array) $data // optimised for small arrays; see: http://stackoverflow.com/questions/3470990/is-micro-optimization-worth-the-time
+					? $data
+					: func_get_args();
+
+				// ensure numeric arrays are converted
+				$data = $this->makeAssociative($data);
+
+				// ensure complex data types are converted to TokenRenderers
+				foreach ($data as $key => $value)
+				{
+					$data[$key] = TokenRenderer::make($value);
+				}
+
+				// merge stored and new data
+				$data = array_merge($this->data, $data);				
 			}
+
+			// render
 			return $this->replace($this->source, $data);
 		}
 
@@ -293,8 +270,8 @@ class TokenString
 		 */
 		public function resolve($filter = false)
 		{
-			// cache old matches;
-			$matches = [] + $this->matches;
+			// cache old tokens;
+			$tokens = [] + $this->tokens;
 
 			// update string
 			$this->setSource($this->replace($this->source, $this->data));
@@ -302,7 +279,7 @@ class TokenString
 			// filter out old data
 			if($filter)
 			{
-				$this->data = array_intersect_key($this->data, $matches);
+				$this->data = array_intersect_key($this->data, $tokens);
 			}
 
 			// return
@@ -324,141 +301,52 @@ class TokenString
 			return $this->setSource($this->render($data ?: $this->data));
 		}
 
-		/**
-		 * Attempts to match an arbitrary string against the current template
-		 *
-		 * Use this when you need to check if an incoming string matches the constraints
-		 *
-		 * Internally, this method
-		 *
-		 * @param   string  $input      An input string to match
-		 * @param   string  $format     An optional regex format to surround the source-matching pattern;
-		 *                                - start and end delimiter characters are mandatory; defaults to back-ticks (`)
-		 *                                - add mode modifiers as required; defaults to case-insensitive (i)
-		 *                                - include add start or end anchors; defaults to both (^ and $)
-		 *                                - use $0 as the placeholder for the source regex
-		 * @return  array|null
-		 */
-		public function match($input, $format = '`^$0$`i')
-		{
-			// get regex
-			if($this->sourceRegex === '')
-			{
-				$this->sourceRegex = $this->getSourceRegex($format);
-			}
-
-			// match
-			preg_match($this->sourceRegex, $input, $matches);
-
-			// convert matches to named capture array
-			if(count($matches))
-			{
-				array_shift($matches);
-				return array_combine(array_keys($this->matches), $matches);
-			}
-			return false;
-		}
-
-		/**
-		 * Returns a regex that matches the source string and replacement pattern filters
-		 *
-		 * @param   string  $format     An optional regex format to surround the source-matching pattern;
-		 *                                - start and end delimiter characters are mandatory; defaults to back-ticks (`)
-		 *                                - add mode modifiers as required; defaults to case-insensitive (i)
-		 *                                - include add start or end anchors; defaults to both (^ and $)
-		 *                                - use $0 as the placeholder for the source regex
-		 * @return  string
-		 */
-		public function getSourceRegex($format = '`^$0$`i')
-		{
-			// the process of building a suitable match string is complicated due to the
-			// fact that we need to escape the source string - but don't want to escape
-			// either the original tokens, or the the regex matches that will match the
-			// target string. as such, we need to employ some substitution trickery, and
-			// build the final regex in 4 phases.
-			//
-			// the 1st phase sets up the data we will need for the following phases,
-			// including adding capturing brackets around the regexps. the 2nd phase swaps
-			// the original tokens for placeholders which are formatted in a way be immune
-			// to escaping; this will allow us to escape the entire string in the 3rd phase,
-			// then in 4th phase, swap out the placeholders for the individual regexes.
-
-			// variables
-			$delimiter      = substr($format, 0, 1);
-			$source         = $this->source;
-			$placeholders   = [];
-			$filters        = [];
-
-			// phase 1: build arrays
-			foreach ($this->matches as $name => $match)
-			{
-				// variables
-				$placeholder            = '%%' . strtoupper($name) . '%%';
-				$filter                 = isset($this->filters[$name])
-											? $this->filters[$name]
-											: '.*';
-
-				// update arrays
-				$placeholders[$match]   = $placeholder;
-				$filters[$placeholder]  = "($filter)";
-			}
-
-			// phase 2: replace tokens with placeholders
-			foreach ($placeholders as $match => $placeholder)
-			{
-				$source = str_replace($match, $placeholder, $source);
-			}
-
-			// phase 3: quote source
-			$source = preg_quote($source, $delimiter);
-
-			// phase 4: replace placeholders with filters
-			foreach ($filters as $placeholder => $filter)
-			{
-				$source = str_replace($placeholder, str_replace($delimiter, '\\' . $delimiter, $filter), $source);
-			}
-
-			// debug
-			//pd($source);
-
-			// return
-			return str_replace('$0', $source, $format);
-		}
 
 	// ------------------------------------------------------------------------------------------------
 	// PROTECTED METHODS
 
 		protected function replace($source, array $data)
 		{
-			foreach($this->matches as $name => $match)
-			{
-				// ignore unset keys
-				if(isset($data[$name]))
-				{
-					// get the replacement
-					$replace = $data[$name];
+			/** @var Token $token */
+			$token = null;
 
-					// if not a string, resolve
-					if( ! is_string($replace) )
+			foreach($this->tokens as $name => $token)
+			{
+				if(isset($data[$token->name]))
+				{
+					// get value
+					$value = $data[$token->name];
+
+					// transform value
+					if($value instanceof TokenRenderer)
 					{
-						if($replace instanceof TokenString)
+						$value = $value->render($token, $data, $source);
+					}
+
+					// filter
+					if($token->filters)
+					{
+						foreach ($token->filters as $filter)
 						{
-							$replace = $replace->render($data);
-						}
-						else if (is_callable($replace) )
-						{
-							$replace = call_user_func($replace, $name);
+							if(is_callable($filter))
+							{
+								$value = $filter($value);
+							}
 						}
 					}
 
-					// replace the original token
-					$source = str_replace($match, (string) $replace, $source);
+					// replace
+					$source = str_replace($token->match, (string) $value, $source);
 				}
 			}
 
 			// return
 			return $source;
 		}
+
+
+	// ------------------------------------------------------------------------------------------------
+	// UTILITIES
 
 		/**
 		 * Checks if passed array is numeric, and if so, converts to associative,
@@ -468,45 +356,33 @@ class TokenString
 		 * @param   array   $values
 		 * @return  array
 		 */
-		protected function makeAssociative($values)
+		public function makeAssociative($values)
 		{
-			// return if already associative
-			if($this->isAssociative($values))
+			// convert if numeric
+			if(array_values($values) == $values)
 			{
-				return $values;
+				// get existing keys
+				$names       = array_keys($this->tokens);
+				$numNames    = count($names);
+				$numValues   = count($values);
+
+				// make arrays the same length
+				if($numNames < $numValues)
+				{
+					$values = array_slice($values, 0, $numNames);
+				}
+				else if($numNames > $numValues)
+				{
+					$names = array_slice($names, 0, $numValues);
+				}
+
+				// return
+				return array_combine($names, $values);
 			}
 
-			// get existing keys
-			$keys       = array_keys($this->matches);
-			$numKeys    = count($keys);
-			$numVals    = count($values);
-
-			// make arrays the same length
-			if($numKeys < $numVals)
-			{
-				$values = array_slice($values, 0, $numKeys);
-			}
-			else if($numKeys > $numVals)
-			{
-				$keys = array_slice($keys, 0, $numVals);
-			}
-
-			// return
-			return array_combine($keys, $values);
+			// otherwise, return
+			return $values;
 		}
-
-		protected function isAssociative($arr)
-		{
-			foreach ($arr as $key => $value)
-			{
-				if (is_string($key)) return true;
-			}
-			return false;
-		}
-
-
-	// ------------------------------------------------------------------------------------------------
-	// UTILITIES
 
 		public function __toString()
 		{
@@ -514,3 +390,6 @@ class TokenString
 		}
 
 }
+
+TokenString::config();
+

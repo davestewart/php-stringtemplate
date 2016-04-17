@@ -15,6 +15,7 @@
             <!--<directory suffix=".php">./tests/</directory>-->
             <file>tests/SetupTest.php</file>
             <file>tests/ReplacementTest.php</file>
+            <file>tests/MatchTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>
