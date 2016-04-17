@@ -77,6 +77,41 @@ class ReplacementTest extends PHPUnit_Framework_TestCase
 			$this->assertEquals($expect, $output);
 		}
 
+		public function testRenderNoParameters()
+		{
+			$expect = 'foo {bar}';
+			$source = '{foo} {bar}';
+			$data   = [ 'foo' ];
+
+			$string = TokenString::make($source, $data);
+			$output = $string->render();
+
+			$this->assertEquals($expect, $output);
+		}
+
+		public function testRenderAcceptsArray()
+		{
+			$expect = 'foo bar';
+			$source = '{foo} {bar}';
+			$data   = [ 'foo', 'bar' ];
+
+			$string = TokenString::make($source);
+			$output = $string->render($data);
+
+			$this->assertEquals($expect, $output);
+		}
+
+		public function testRenderAcceptsVariableParameters()
+		{
+			$expect = 'foo bar';
+			$source = '{foo} {bar}';
+
+			$string = TokenString::make($source);
+			$output = $string->render('foo', 'bar');
+
+			$this->assertEquals($expect, $output);
+		}
+
 
 	// ------------------------------------------------------------------------------------------------
 	// RENDER TYPES
